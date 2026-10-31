@@ -2,7 +2,7 @@
 Recebe a arte (PNG em base64), vetoriza a imagem inteira e devolve
 SVG, PDF vetorial (RGB), PDF em CMYK e EPS em CMYK.
 Variável de ambiente opcional: KEY (chave de acesso, enviada como Bearer)."""
-import base64, io, os, subprocess, tempfile
+import base64, io, os, random, subprocess, tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -72,15 +72,17 @@ def _medidas(l, a, padrao):
     return _m16(l * k), _m16(a * k)
 
 
-def gerar_imagem(prompt, imagem, w, h):
-    conta, token = os.environ.get("CF_ACCOUNT_ID"), os.environ.get("CF_API_TOKEN")
+def _chamar(modelo, prompt, imagem, w, h):
+    conta = os.environ.get("CF_ACCOUNT_ID", "").strip()
+    token = os.environ.get("CF_API_TOKEN", "").strip()
     if not conta or not token:
         raise HTTPException(500, "faltam as variáveis CF_ACCOUNT_ID e CF_API_TOKEN no Render")
     # o modelo exige multipart, mesmo só com texto: por isso tudo vai em files=
-    campos = {"prompt": (None, prompt), "width": (None, str(w)), "height": (None, str(h))}
+    campos = {"prompt": (None, prompt), "width": (None, str(w)), "height": (None, str(h)),
+              "seed": (None, str(random.randint(1, 2**31 - 1)))}
     if imagem:
         campos["input_image_0"] = ("ref.png", base64.b64decode(imagem.split(",", 1)[-1]), "image/png")
-    url = f"https://api.cloudflare.com/client/v4/accounts/{conta}/ai/run/{CF_MODELO}"
+    url = f"https://api.cloudflare.com/client/v4/accounts/{conta}/ai/run/{modelo}"
     try:
         r = httpx.post(url, headers={"Authorization": f"Bearer {token}"}, files=campos, timeout=120)
     except Exception as e:
@@ -100,6 +102,23 @@ def gerar_imagem(prompt, imagem, w, h):
     return f"data:{'image/jpeg' if img.startswith('/9j/') else 'image/png'};base64,{img}"
 
 
+CF_MODELOS = [CF_MODELO, CF_MODELO, "@cf/black-forest-labs/flux-2-klein-4b"]
+
+
+def gerar_imagem(prompt, imagem, w, h):
+    """Tenta até 3 vezes (seed diferente a cada uma) quando o filtro de conteúdo barra o resultado."""
+    ultimo = ""
+    for modelo in CF_MODELOS:
+        try:
+            return _chamar(modelo, prompt, imagem, w, h)
+        except HTTPException as e:
+            ultimo = str(e.detail)
+            if "flagged" not in ultimo.lower():
+                raise
+    raise HTTPException(502, "O filtro de conteúdo da IA barrou o resultado nas 3 tentativas. "
+                             "Tente outra foto ou acrescente uma descrição. Detalhe: " + ultimo[:120])
+
+
 def _tenta(f):
     try:
         return f(), None
@@ -109,7 +128,7 @@ def _tenta(f):
 
 @app.post("/ia")
 def ia(p: PedidoIA, authorization: str = Header(default="")):
-    chave = os.environ.get("KEY", "")
+    chave = os.environ.get("KEY", "").strip()
     if chave and authorization != f"Bearer {chave}":
         raise HTTPException(401, "chave inválida")
     extra = p.prompt.strip()
@@ -155,7 +174,7 @@ def saude():
 
 @app.post("/vetorizar")
 def vetorizar(p: Pedido, authorization: str = Header(default="")):
-    chave = os.environ.get("KEY", "")
+    chave = os.environ.get("KEY", "").strip()
     if chave and authorization != f"Bearer {chave}":
         raise HTTPException(401, "chave inválida")
     try:

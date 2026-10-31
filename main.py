@@ -72,9 +72,17 @@ def vetorizar(p: Pedido, authorization: str = Header(default="")):
         except Exception as e:
             raise HTTPException(500, "vetorização falhou: " + str(e)[:200])
         # dpi=300: 1 px do SVG = 1/300 pol., o mesmo tamanho do PDF do estúdio
-        cairosvg.svg2pdf(url=str(d / "arte.svg"), write_to=str(d / "rgb.pdf"), dpi=300)
+        try:
+            cairosvg.svg2pdf(url=str(d / "arte.svg"), write_to=str(d / "rgb.pdf"), dpi=300)
+        except Exception as e:
+            raise HTTPException(500, "conversão para PDF falhou: " + str(e)[:200])
+        res = {"svg": b64(d / "arte.svg"), "pdf": b64(d / "rgb.pdf")}
         cmyk = ["-sColorConversionStrategy=CMYK", "-dProcessColorModel=/DeviceCMYK"]
-        gs(["-sDEVICE=pdfwrite", *cmyk, str(d / "rgb.pdf")], d / "cmyk.pdf")
-        gs(["-sDEVICE=eps2write", *cmyk, str(d / "rgb.pdf")], d / "arte.eps")
-        return {"svg": b64(d / "arte.svg"), "pdf": b64(d / "rgb.pdf"),
-                "pdf_cmyk": b64(d / "cmyk.pdf"), "eps": b64(d / "arte.eps")}
+        for chave, dev, saida in (("pdf_cmyk", "pdfwrite", "cmyk.pdf"), ("eps", "eps2write", "arte.eps")):
+            try:
+                gs([f"-sDEVICE={dev}", *cmyk, str(d / "rgb.pdf")], d / saida)
+                res[chave] = b64(d / saida)
+            except Exception as e:
+                res[chave] = None
+                res.setdefault("erros", {})[chave] = str(getattr(e, "detail", e))[:200]
+        return res

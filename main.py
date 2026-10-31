@@ -53,6 +53,13 @@ BASE_PROMPT = ("pure white background, flat solid colors, no shadows, no folds, 
                "no fabric texture, no hanger, no perspective")
 
 
+LIMPAR = ("Redraw the logo or text shown in image 0 as a clean, flat, front-facing graphic on a pure white "
+          "background. Remove fabric texture, folds, shadows and perspective distortion. Keep the exact same "
+          "shapes, colors and lettering. Nothing else in the image.")
+FUNDO = ("Recreate the fabric print pattern of image 0 as a clean flat swatch filling the whole image. Remove any "
+         "logos, text, badges, seams, folds and shadows, continuing the pattern underneath. Flat colors, no perspective.")
+
+
 class PedidoIA(BaseModel):
     acao: str
     prompt: str = ""
@@ -147,6 +154,9 @@ def ia(p: PedidoIA, authorization: str = Header(default="")):
                   f"{BASE_PROMPT}. Clean vector illustration style."
                   + (f" Extra instructions: {extra}" if extra else ""))
         return {"imagem": gerar_imagem(prompt, p.imagem, 1536, 1024)}
+    if p.acao in ("limpar", "fundo"):
+        w, h = _medidas(p.largura, p.altura, (1024, 1024))
+        return {"imagem": gerar_imagem(LIMPAR if p.acao == "limpar" else FUNDO, p.imagem, w, h)}
     if p.acao == "corrigir":
         if not extra:
             raise HTTPException(400, "escreva o que corrigir (ex.: trocar 'NOTURNO' por 'NOTURNA')")

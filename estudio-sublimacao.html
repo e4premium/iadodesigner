@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estúdio de Sublimação</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#e9eaed;--panel:#f7f7f8;--ink:#161923;--mute:#5d6372;--line:#c9ccd4;--c:#0096b8;--m:#d6246e;--y:#f2c500}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.45 'IBM Plex Sans',system-ui,sans-serif}
+h1,h2{font-family:'Bricolage Grotesque',system-ui,sans-serif;margin:0}
+header{display:flex;align-items:center;gap:14px;padding:12px 20px;border-bottom:2px solid var(--ink);background:var(--panel)}
+header h1{font-size:22px;font-weight:800}
+.cmyk{display:flex;gap:4px}.cmyk i{width:12px;height:12px;border-radius:50%;display:block}
+header .sp{flex:1}
+.app{display:grid;grid-template-columns:290px 1fr 250px;min-height:calc(100vh - 56px)}
+aside{background:var(--panel);padding:16px;overflow:auto}
+aside.l{border-right:1px solid var(--line)}aside.r{border-left:1px solid var(--line)}
+h2{font-size:15px;font-weight:700;margin:18px 0 8px}h2:first-child{margin-top:0}
+button,select,input,textarea{font:inherit}
+button{background:var(--ink);color:#fff;border:0;border-radius:6px;padding:8px 12px;cursor:pointer}
+button.o{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+button:hover{opacity:.88}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--c);outline-offset:2px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.row>*{flex:1}
+label{font-size:13px;color:var(--mute);display:block}
+input[type=range]{width:100%}
+textarea,input[type=text],select{width:100%;border:1.5px solid var(--line);border-radius:6px;padding:7px;background:#fff}
+textarea{min-height:64px;resize:vertical}
+main{padding:18px;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
+.stage{width:100%;flex:1;display:grid;place-items:center;border:1.5px dashed var(--line);border-radius:10px;padding:14px;min-height:340px;
+background:conic-gradient(#fff 25%,#e3e5ea 0 50%,#fff 0 75%,#e3e5ea 0) 0 0/20px 20px}
+canvas#st{max-width:100%;max-height:70vh;box-shadow:0 0 0 1px var(--line)}
+.empty{text-align:center;color:var(--mute);background:var(--panel);padding:22px;border-radius:10px}
+#msg{font-size:13px;color:var(--mute);min-height:20px;align-self:flex-start}
+#msg.err{color:var(--m)}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;gap:8px;align-items:center;padding:6px;border:1.5px solid transparent;border-radius:6px;cursor:pointer}
+li.on{border-color:var(--ink);background:#fff}
+li canvas{width:36px;height:36px;object-fit:contain;background:#e3e5ea;border-radius:3px}
+li span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+li button{padding:3px 8px;font-size:12px}
+.hint{font-size:12px;color:var(--mute)}
+@media(max-width:900px){.app{grid-template-columns:1fr}aside.l,aside.r{border:0}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="cmyk" aria-hidden="true"><i style="background:var(--c)"></i><i style="background:var(--m)"></i><i style="background:var(--y)"></i><i style="background:var(--ink)"></i></div>
+  <h1>Estúdio de Sublimação</h1><div class="sp"></div>
+  <button class="o" id="bCfg">Conectar servidor de IA</button>
+  <button class="o" id="bExp">Baixar PNG</button>
+  <button id="bPdf">Baixar PDF</button>
+</header>
+
+<div class="app">
+<aside class="l">
+  <h2>Arte</h2>
+  <div class="row"><button id="bUp">Enviar arte ou foto</button></div>
+  <input type="file" id="fi" accept="image/*" hidden>
+
+  <h2>Remover fundo</h2>
+  <label>Tolerância: <b id="tv">40</b></label>
+  <input type="range" id="tol" min="5" max="120" value="40">
+  <div class="row"><button id="bBg">Tirar o fundo</button></div>
+
+  <h2>Ampliar</h2>
+  <div class="row"><button class="o" data-up="2">2×</button><button class="o" data-up="3">3×</button><button class="o" data-up="4">4×</button></div>
+
+  <h2>Mockup</h2>
+  <div class="row"><select id="ms"><option value="f">Frente</option><option value="b">Costas</option></select><input type="color" id="mc" value="#1b2a5c" aria-label="Cor da camisa"></div>
+  <div class="row"><button id="bMk">Montar mockup</button></div>
+
+  <h2>Vetor para o Corel</h2>
+  <div class="row"><select id="fm" aria-label="Formato"><option value="pdf_cmyk">PDF vetor CMYK</option><option value="pdf">PDF vetor RGB</option><option value="eps">EPS CMYK</option><option value="svg">SVG</option></select>
+  <select id="dt" aria-label="Detalhe"><option value="medio">Detalhe médio</option><option value="alto">Detalhe alto</option></select></div>
+  <div class="row"><button id="bVt">Vetorizar a arte inteira</button></div>
+  <p class="hint">Usa o servidor de exportação. Arte com degradê e brilho gera arquivo grande.</p>
+
+  <h2>Com IA</h2>
+  <textarea id="pr" placeholder="Ex.: camisa de trilha noturna, manga longa, fundo em grafismo de lama, laranja e preto"></textarea>
+  <div class="row"><button data-ia="gerar">Criar do zero</button><button class="o" data-ia="recriar">Recriar a arte</button></div>
+  <div class="row"><button class="o" data-ia="corrigir">Corrigir texto</button><button class="o" data-ia="camadas">Separar camadas</button></div>
+  <p class="hint">As ações de IA usam o seu servidor. Sem ele conectado, as outras ferramentas funcionam normalmente.</p>
+</aside>
+
+<main>
+  <div class="stage" id="stage">
+    <div class="empty" id="empty"><b>Comece enviando uma arte.</b><br>Pode ser a foto da camisa que o cliente mandou.</div>
+    <canvas id="st" hidden></canvas>
+  </div>
+  <div id="msg" role="status"></div>
+</main>
+
+<aside class="r">
+  <h2>Camadas</h2>
+  <ul id="ls"></ul>
+  <p class="hint" id="lh">Nenhuma camada ainda.</p>
+</aside>
+</div>
+
+<dialog id="dg" style="border:2px solid var(--ink);border-radius:10px;max-width:420px">
+  <h2>Servidor de IA</h2>
+  <p class="hint">Endereço do seu backend. O estúdio envia <code>POST /ia</code> com <code>{acao, prompt, imagem}</code> e espera <code>{imagem}</code> em base64 (data URL).</p>
+  <label for="cu">URL do servidor</label><input type="text" id="cu" placeholder="https://meu-servidor.onrender.com">
+  <label for="ck" style="margin-top:8px">Chave de acesso (opcional)</label><input type="text" id="ck">
+  <label for="ce" style="margin-top:8px">Servidor de exportação (vetor)</label><input type="text" id="ce" placeholder="https://estudio-export.onrender.com">
+  <div class="row" style="margin-top:12px"><button class="o" id="cx">Cancelar</button><button id="cs">Salvar</button></div>
+</dialog>
+
+<script>
+const $=s=>document.querySelector(s);
+let layers=[],sel=-1,cfg={};
+try{cfg=JSON.parse(localStorage.getItem('estudio-cfg')||'{}')}catch(e){}
+const say=(t,e)=>{const m=$('#msg');m.textContent=t;m.className=e?'err':''};
+const mk=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c};
+
+function render(){
+  const st=$('#st');
+  if(!layers.length){st.hidden=true;$('#empty').hidden=false;drawList();return}
+  $('#empty').hidden=true;st.hidden=false;
+  const W=Math.max(...layers.map(l=>l.c.width)),H=Math.max(...layers.map(l=>l.c.height));
+  st.width=W;st.height=H;const x=st.getContext('2d');x.clearRect(0,0,W,H);
+  layers.forEach(l=>{if(l.on)x.drawImage(l.c,(W-l.c.width)/2,(H-l.c.height)/2)});
+  drawList();
+}
+function drawList(){
+  const ul=$('#ls');ul.innerHTML='';$('#lh').hidden=layers.length>0;
+  layers.forEach((l,i)=>{
+    const li=document.createElement('li');if(i===sel)li.className='on';
+    const th=mk(36,36);const s=Math.min(36/l.c.width,36/l.c.height);
+    th.getContext('2d').drawImage(l.c,0,0,l.c.width*s,l.c.height*s);
+    const n=document.createElement('span');n.textContent=l.name;
+    const v=document.createElement('button');v.className='o';v.textContent=l.on?'Ocultar':'Mostrar';
+    v.onclick=e=>{e.stopPropagation();l.on=!l.on;render()};
+    const d=document.createElement('button');d.className='o';d.textContent='Excluir';d.setAttribute('aria-label','Excluir '+l.name);
+    d.onclick=e=>{e.stopPropagation();layers.splice(i,1);sel=Math.min(sel,layers.length-1);render()};
+    li.append(th,n,v,d);li.onclick=()=>{sel=i;render()};ul.append(li);
+  });
+}
+function add(name,c){layers.push({name,c,on:true});sel=layers.length-1;render()}
+function cur(){if(sel<0||!layers[sel]){say('Envie uma arte e selecione uma camada primeiro.',1);return null}return layers[sel]}
+
+function load(src,name){
+  return new Promise(ok=>{const im=new Image();im.onload=()=>{
+    const c=mk(im.naturalWidth,im.naturalHeight);c.getContext('2d').drawImage(im,0,0);add(name,c);ok()};
+    im.onerror=()=>say('Não consegui abrir essa imagem.',1);im.src=src});
+}
+$('#bUp').onclick=()=>$('#fi').click();
+$('#fi').onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{load(r.result,f.name);say('Arte carregada.')};r.readAsDataURL(f);e.target.value=''};
+
+$('#tol').oninput=e=>$('#tv').textContent=e.target.value;
+$('#bBg').onclick=()=>{
+  const l=cur();if(!l)return;
+  const {width:w,height:h}=l.c,x=l.c.getContext('2d'),id=x.getImageData(0,0,w,h),d=id.data,tol=+$('#tol').value;
+  const px=(a,b)=>(b*w+a)*4;
+  const cs=[[0,0],[w-1,0],[0,h-1],[w-1,h-1]].map(([a,b])=>{const p=px(a,b);return[d[p],d[p+1],d[p+2]]});
+  const bg=[0,1,2].map(k=>Math.round(cs.reduce((s,c)=>s+c[k],0)/4));
+  const near=p=>Math.hypot(d[p]-bg[0],d[p+1]-bg[1],d[p+2]-bg[2])<tol;
+  const seen=new Uint8Array(w*h),st=[];
+  for(let a=0;a<w;a++){st.push(a,0,a,h-1)}for(let b=0;b<h;b++){st.push(0,b,w-1,b)}
+  while(st.length){const b=st.pop(),a=st.pop();if(a<0||b<0||a>=w||b>=h)continue;const k=b*w+a;if(seen[k])continue;seen[k]=1;
+    const p=k*4;if(!near(p))continue;d[p+3]=0;st.push(a+1,b,a-1,b,a,b+1,a,b-1)}
+  x.putImageData(id,0,0);render();say('Fundo removido. Se sobrou borda, aumente a tolerância e tente de novo em uma cópia.');
+};
+
+document.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{
+  const l=cur();if(!l)return;const f=+b.dataset.up,w=l.c.width*f,h=l.c.height*f;
+  if(Math.max(w,h)>8000){say('Essa ampliação passa de 8000 px. Use um fator menor.',1);return}
+  const n=mk(w,h),x=n.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(l.c,0,0,w,h);
+  const id=x.getImageData(0,0,w,h),o=new Uint8ClampedArray(id.data),d=id.data,k=[0,-.5,0,-.5,3,-.5,0,-.5,0];
+  for(let j=1;j<h-1;j++)for(let i=1;i<w-1;i++){const p=(j*w+i)*4;if(!o[p+3])continue;
+    for(let c=0;c<3;c++){let s=0,t=0;for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){s+=o[((j+b)*w+i+a)*4+c]*k[t++]}d[p+c]=s}}
+  x.putImageData(id,0,0);add(l.name+' '+f+'×',n);say('Arte ampliada '+f+'×.');
+});
+
+$('#bMk').onclick=()=>{
+  const l=cur();if(!l)return;
+  const W=900,H=1000,c=mk(W,H),x=c.getContext('2d'),col=$('#mc').value,back=$('#ms').value==='b';
+  x.fillStyle='#f1f2f4';x.fillRect(0,0,W,H);
+  x.fillStyle=col;x.beginPath();
+  x.moveTo(330,80);x.lineTo(150,170);x.lineTo(60,440);x.lineTo(170,480);x.lineTo(230,330);x.lineTo(230,930);
+  x.lineTo(670,930);x.lineTo(670,330);x.lineTo(730,480);x.lineTo(840,440);x.lineTo(750,170);x.lineTo(570,80);
+  x.quadraticCurveTo(450,back?110:190,330,80);x.closePath();x.fill();
+  x.strokeStyle='rgba(0,0,0,.25)';x.lineWidth=3;x.stroke();
+  const bw=380,bh=520,s=Math.min(bw/l.c.width,bh/l.c.height),w=l.c.width*s,h=l.c.height*s;
+  x.drawImage(l.c,450-w/2,back?230:260,w,h);
+  add('Mockup '+(back?'costas':'frente'),c);say('Mockup montado. É uma prévia simples, sem modelo vestindo.');
+};
+
+$('#bExp').onclick=()=>{
+  if(!layers.length){say('Nada para baixar ainda.',1);return}
+  const a=document.createElement('a');a.href=$('#st').toDataURL('image/png');a.download='arte-sublimacao.png';a.click();
+  say('PNG baixado. EPS e CMYK precisam do servidor.');
+};
+
+document.querySelectorAll('[data-ia]').forEach(b=>b.onclick=async()=>{
+  if(!cfg.url){say('Conecte o seu servidor de IA para usar esta ação.',1);return}
+  const ac=b.dataset.ia,pr=$('#pr').value.trim();
+  if(ac==='gerar'&&!pr){say('Descreva a arte que você quer criar.',1);return}
+  let img=null;if(ac!=='gerar'){const l=cur();if(!l)return;img=l.c.toDataURL('image/png')}
+  say('Processando…');
+  try{
+    const r=await fetch(cfg.url.replace(/\/$/,'')+'/ia',{method:'POST',
+      headers:{'Content-Type':'application/json',...(cfg.key?{Authorization:'Bearer '+cfg.key}:{})},
+      body:JSON.stringify({acao:ac,prompt:pr,imagem:img})});
+    if(!r.ok)throw new Error('o servidor respondeu '+r.status);
+    const j=await r.json();const list=j.imagens||(j.imagem?[j.imagem]:[]);
+    if(!list.length)throw new Error('a resposta veio sem imagem');
+    for(let i=0;i<list.length;i++)await load(list[i],ac+(list.length>1?' '+(i+1):''));
+    say('Pronto.');
+  }catch(e){say('Falhou: '+e.message+'. Confira o endereço do servidor.',1)}
+});
+
+$('#bPdf').onclick=()=>{
+  if(!layers.length){say('Nada para baixar ainda.',1);return}
+  if(!window.jspdf){say('Não consegui carregar o gerador de PDF. Confira a internet e recarregue a página.',1);return}
+  const c=$('#st'),w=c.width/300*25.4,h=c.height/300*25.4;
+  const pdf=new window.jspdf.jsPDF({orientation:w>h?'l':'p',unit:'mm',format:[w,h]});
+  pdf.addImage(c.toDataURL('image/png'),'PNG',0,0,w,h);
+  pdf.save('arte-sublimacao.pdf');
+  say('PDF baixado em '+Math.round(w)+' × '+Math.round(h)+' mm (300 dpi).');
+};
+
+$('#bVt').onclick=async()=>{
+  if(!layers.length){say('Envie uma arte primeiro.',1);return}
+  if(!cfg.exp){say('Conecte o servidor de exportação para vetorizar.',1);return}
+  const fm=$('#fm').value,ext={pdf_cmyk:'pdf',pdf:'pdf',eps:'eps',svg:'svg'}[fm];
+  say('Vetorizando… arte grande pode levar alguns minutos.');$('#bVt').disabled=true;
+  try{
+    const r=await fetch(cfg.exp.replace(/\/$/,'')+'/vetorizar',{method:'POST',
+      headers:{'Content-Type':'application/json',...(cfg.key?{Authorization:'Bearer '+cfg.key}:{})},
+      body:JSON.stringify({imagem:$('#st').toDataURL('image/png'),detalhe:$('#dt').value})});
+    if(!r.ok)throw new Error('o servidor respondeu '+r.status);
+    const j=await r.json(),bin=atob(j[fm]),u=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([u]));a.download='arte-vetor.'+ext;a.click();
+    say('Arquivo vetorial baixado ('+Math.round(u.length/1024)+' KB).');
+  }catch(e){say('Falhou: '+e.message+'. Confira o endereço do servidor de exportação.',1)}
+  $('#bVt').disabled=false;
+};
+
+const dg=$('#dg');
+$('#bCfg').onclick=()=>{$('#cu').value=cfg.url||'';$('#ck').value=cfg.key||'';$('#ce').value=cfg.exp||'';dg.showModal()};
+$('#cx').onclick=()=>dg.close();
+$('#cs').onclick=()=>{cfg={url:$('#cu').value.trim(),key:$('#ck').value.trim(),exp:$('#ce').value.trim()};
+  try{localStorage.setItem('estudio-cfg',JSON.stringify(cfg))}catch(e){}dg.close();say(cfg.url||cfg.exp?'Configuração salva.':'Servidores removidos.')};
+render();
+</script>
+</body>
+</html>

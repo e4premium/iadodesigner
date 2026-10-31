@@ -15,7 +15,9 @@ from pydantic import BaseModel
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-MAX_LADO = 4000  # px; acima disso a vetorização fica lenta e o arquivo enorme
+# px; acima disso a vetorização fica lenta, pesada e o arquivo enorme.
+# No plano grátis do Render (512 MB) mantenha baixo; aumente pela variável MAX_LADO.
+MAX_LADO = int(os.environ.get("MAX_LADO", "1600"))
 
 # detalhe -> parâmetros do vtracer (mais precisão = mais curvas = arquivo maior)
 PRESETS = {
@@ -61,11 +63,14 @@ def vetorizar(p: Pedido, authorization: str = Header(default="")):
     with tempfile.TemporaryDirectory() as d:
         d = Path(d)
         im.save(d / "in.png")
-        vtracer.convert_image_to_svg_py(
-            str(d / "in.png"), str(d / "arte.svg"),
-            colormode="color", hierarchical="stacked", mode="spline",
-            max_iterations=10, splice_threshold=45, path_precision=3,
-            **PRESETS.get(p.detalhe, PRESETS["medio"]))
+        try:
+            vtracer.convert_image_to_svg_py(
+                str(d / "in.png"), str(d / "arte.svg"),
+                colormode="color", hierarchical="stacked", mode="spline",
+                max_iterations=10, splice_threshold=45, path_precision=3,
+                **PRESETS.get(p.detalhe, PRESETS["medio"]))
+        except Exception as e:
+            raise HTTPException(500, "vetorização falhou: " + str(e)[:200])
         # dpi=300: 1 px do SVG = 1/300 pol., o mesmo tamanho do PDF do estúdio
         cairosvg.svg2pdf(url=str(d / "arte.svg"), write_to=str(d / "rgb.pdf"), dpi=300)
         cmyk = ["-sColorConversionStrategy=CMYK", "-dProcessColorModel=/DeviceCMYK"]

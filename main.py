@@ -31,8 +31,10 @@ class Pedido(BaseModel):
     detalhe: str = "medio"
 
 
-def gs(args, saida):
-    r = subprocess.run(["gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-q", *args, f"-sOutputFile={saida}"],
+def gs(args, saida, entrada):
+    # -sOutputFile precisa vir ANTES do arquivo de entrada
+    r = subprocess.run(["gs", "-dSAFER", "-dBATCH", "-dNOPAUSE", "-q", *args,
+                        f"-sOutputFile={saida}", str(entrada)],
                        capture_output=True, timeout=240)
     if r.returncode != 0:
         raise HTTPException(500, "Ghostscript falhou: " + r.stderr.decode(errors="ignore")[:200])
@@ -80,7 +82,7 @@ def vetorizar(p: Pedido, authorization: str = Header(default="")):
         cmyk = ["-sColorConversionStrategy=CMYK", "-dProcessColorModel=/DeviceCMYK"]
         for chave, dev, saida in (("pdf_cmyk", "pdfwrite", "cmyk.pdf"), ("eps", "eps2write", "arte.eps")):
             try:
-                gs([f"-sDEVICE={dev}", *cmyk, str(d / "rgb.pdf")], d / saida)
+                gs([f"-sDEVICE={dev}", *cmyk], d / saida, d / "rgb.pdf")
                 res[chave] = b64(d / saida)
             except Exception as e:
                 res[chave] = None

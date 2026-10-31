@@ -3,3 +3,4 @@ uvicorn==0.34.0
 vtracer==0.6.11
 cairosvg==2.7.1
 pillow==11.1.0
+httpx==0.28.1
